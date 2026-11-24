@@ -169,7 +169,7 @@ button.big{padding:14px 26px;font-size:17px}
 
 <section id="quiz" class="hide">
   <div class="bar"><i id="qbar" style="width:0"></i></div>
-  <div class="card"><h2 id="qtext"></h2><div id="qopts"></div></div>
+  <div class="card"><h2 id="qtext"></h2><p class="def hide" id="qsent" style="font-size:18px;margin:0 0 12px"></p><div id="qopts"></div></div>
 </section>
 
 <section id="result" class="hide">
@@ -177,6 +177,7 @@ button.big{padding:14px 26px;font-size:17px}
     <p class="sub" id="rhead" style="margin:0">Your result</p>
     <h1 id="rlevel"></h1>
     <p class="sub" id="rtext"></p>
+    <ul id="rreview" class="sub" style="margin:0 0 14px;padding-left:18px"></ul>
     <button class="pri" id="rstart">Start training</button>
   </div>
 </section>
@@ -184,7 +185,7 @@ button.big{padding:14px 26px;font-size:17px}
 <section id="train" class="hide">
   <div class="card hide" id="basicNote" role="status" style="border-color:var(--bad)"><b>Basic check mode</b><p class="sub" style="margin:4px 0 0">AI sentence checking isn’t available in this view, so Voca only checks that you used the word in a sentence of four or more words. It can’t judge whether the meaning is right, and it can’t check or correct your grammar.</p></div>
   <div class="card" style="padding:14px 18px"><div class="xpl"><b id="xplabel"></b><span id="xpnum"></span></div><div class="bar" style="margin:0"><i id="xpbar" style="width:0"></i></div></div>
-  <div class="card ucard hide" id="ucard"><b>🔓 Level-up test unlocked</b><p class="sub" style="margin:4px 0 10px">No hints. Get 4 out of 5 right to move up.</p><button class="pri" id="utest">Take the level-up test</button></div>
+  <div class="card ucard hide" id="ucard"><b>🔓 Level-up test unlocked</b><p class="sub" style="margin:4px 0 10px">A mixed test with no hints. Get about 4 out of 5 right to move up.</p><button class="pri" id="utest">Take the level-up test</button></div>
   <div class="bar" title="Session progress"><i id="tbar" style="width:0"></i></div>
   <div class="card">
     <span class="score" id="score">Score 0/0</span>
@@ -204,9 +205,18 @@ button.big{padding:14px 26px;font-size:17px}
 </section>
 
 <section id="test" class="hide">
-  <p class="sub" style="margin:0 0 8px">Level-up test · no hints · results at the end</p>
+  <p class="sub" style="margin:0 0 8px">Level-up test · mixed challenges · no hints · results at the end</p>
   <div class="bar"><i id="tqbar" style="width:0"></i></div>
-  <div class="card"><h2 id="tqtext"></h2><div id="tqopts"></div></div>
+  <div class="card">
+    <p class="sub" id="tqtag" style="margin:0 0 6px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;font-size:12px"></p>
+    <h2 id="tqtext"></h2>
+    <p class="def hide" id="tqsent" style="font-size:18px;margin:0 0 12px"></p>
+    <div id="tqopts"></div>
+    <div id="tqtyped" class="hide">
+      <div style="display:flex;gap:8px"><input id="tqinput" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Your answer" style="min-width:0"><button class="pri" id="tqsubmit" type="button" style="flex:none">Submit</button></div>
+      <p class="sub" id="tqmsg" role="status" style="margin:8px 0 0"></p>
+    </div>
+  </div>
 </section>
 
 <section id="done" class="hide">
@@ -332,6 +342,20 @@ function confetti(){
 }
 
 /* ---------- progress + level-up test ---------- */
+const shufA=a=>[...a].sort(()=>Math.random()-.5);
+// Example sentence with the target word replaced by a blank, or null if the word doesn't appear as written.
+function blankOf(w){const re=new RegExp("\\b"+w.w+"\\b","i");return re.test(w.e)?w.e.replace(re,"_____"):null;}
+function makeChallenge(type,w,pool){
+  const others=pool.filter(x=>x.w!==w.w);
+  if(type==="blank"){
+    const sent=blankOf(w);
+    if(sent)return {t:"blank",w:w.w,e:w.e,prompt:"Choose the word that best completes the sentence.",sentence:sent,opts:shufA([w.w,...shufA(others).slice(0,3).map(x=>x.w)]),ans:w.w};
+    type="meaning";
+  }
+  if(type==="recall")return {t:"recall",w:w.w,d:w.d,prompt:"Type the word that means: “"+w.d+"”",ans:w.w};
+  if(type==="sentence")return {t:"sentence",w:w.w,d:w.d,prompt:"Write one grammatically correct sentence using “"+w.w+"”.",sentence:"Check everything: tense, agreement, articles, prepositions, spelling, capital letters and punctuation.",ans:w.w};
+  return {t:"meaning",w:w.w,d:w.d,prompt:"What does “"+w.w+"” mean?",opts:shufA([w.d,...shufA(others).slice(0,3).map(x=>x.d)]),ans:w.d};
+}
 function save(){
   try{
     localStorage.setItem("voca",JSON.stringify({version:2,level,xp,mastered,wordStats,lastSaved:Date.now()}));
@@ -409,25 +433,81 @@ function updateXp(){
   $("ucard").classList.toggle("hide",!(xp>=100&&!mastered));
   save();
 }
-let tq=[],ti=0,ts=0;
+let tq=[],ti=0,ts=0,tskip=0,tmiss=[],tbusy=false;
+const T_TAGS={meaning:"Meaning",blank:"Fill in the blank",recall:"Recall the word",sentence:"Write a sentence"};
 function startTest(){
   session++;stopMic();try{speechSynthesis.cancel();}catch(e){}
-  const shuf=a=>[...a].sort(()=>Math.random()-.5);
-  const seen=shuf(LEVELS[level].filter(x=>getWordStat(x.w).attempts>0)),unseen=shuf(LEVELS[level].filter(x=>getWordStat(x.w).attempts===0));
-  tq=[...seen,...unseen].slice(0,5);ti=0;ts=0;show("test");renderT();
+  const pool=LEVELS[level];
+  // Words the learner has already practised come first, so the test checks what they have actually learnt.
+  const seen=shufA(pool.filter(x=>getWordStat(x.w).attempts>0)),unseen=shufA(pool.filter(x=>getWordStat(x.w).attempts===0));
+  const picks=[...seen,...unseen].slice(0,5);
+  // A sentence-writing challenge needs the AI to judge grammar, so it only appears when AI checking is available.
+  const plan=[...shufA(["meaning","blank","recall","blank"]),sample?"sentence":"meaning"];
+  tq=picks.map((w,k)=>makeChallenge(plan[k],w,pool));
+  ti=0;ts=0;tskip=0;tmiss=[];tbusy=false;show("test");renderT();
 }
 function renderT(){
-  const q=tq[ti];$("tqbar").style.width=(ti/tq.length*100)+"%";
-  $("tqtext").textContent=`What does “${q.w}” mean?`;$("tqopts").innerHTML="";
-  const opts=[q.d,...LEVELS[level].filter(x=>x.w!==q.w).map(x=>x.d).sort(()=>Math.random()-.5).slice(0,3)].sort(()=>Math.random()-.5);
-  opts.forEach(o=>{const b=document.createElement("button");b.className="opt";b.textContent=o;
-    b.onclick=()=>{if(o===q.d)ts++;[...$("tqopts").children].forEach(x=>x.disabled=true);setTimeout(()=>{if(++ti<tq.length)renderT();else endTest();},350);};
-    $("tqopts").appendChild(b);});
+  const q=tq[ti];tbusy=false;
+  $("tqbar").style.width=(ti/tq.length*100)+"%";
+  $("tqtag").textContent=T_TAGS[q.t]+" · "+(ti+1)+" of "+tq.length;
+  $("tqtext").textContent=q.prompt;
+  $("tqsent").textContent=q.sentence||"";$("tqsent").classList.toggle("hide",!q.sentence);
+  $("tqopts").innerHTML="";
+  const typed=q.t==="recall"||q.t==="sentence";
+  $("tqtyped").classList.toggle("hide",!typed);
+  if(typed){
+    $("tqinput").value="";$("tqinput").disabled=false;$("tqsubmit").disabled=false;$("tqmsg").textContent="";
+    $("tqinput").placeholder=q.t==="recall"?"Type the word…":"Type your sentence…";
+    $("tqinput").maxLength=q.t==="recall"?40:300;
+    setTimeout(()=>$("tqinput").focus(),50);
+  }else{
+    q.opts.forEach(o=>{const b=document.createElement("button");b.className="opt";b.textContent=o;
+      b.onclick=()=>{if(tbusy)return;tbusy=true;[...$("tqopts").children].forEach(x=>x.disabled=true);
+        const ok=o===q.ans;
+        tNext(ok,ok?null:(q.t==="blank"?"“"+q.ans+"” completes: "+q.e:"“"+q.w+"” means: "+q.d));};
+      $("tqopts").appendChild(b);});
+  }
 }
+function tNext(ok,miss){
+  if(ok)ts++;else if(miss)tmiss.push(miss);
+  setTimeout(()=>{if(++ti<tq.length)renderT();else endTest();},350);
+}
+async function submitT(){
+  if(tbusy)return;
+  const q=tq[ti],text=$("tqinput").value.trim();
+  if(!text){$("tqmsg").textContent="Type your answer first.";return;}
+  tbusy=true;$("tqinput").disabled=true;$("tqsubmit").disabled=true;
+  if(q.t==="recall"){
+    const t=normaliseWords(text).join(" "),forms=targetWordForms(q.ans);
+    const ok=forms.has(t)||(q.ans.length>=7&&editDistance(t,q.ans)<=1);   // tolerate one typo in long words
+    return tNext(ok,ok?null:"The word meaning “"+q.d+"” is “"+q.ans+"”");
+  }
+  // Sentence challenge: quick local checks first, then the AI judges every aspect of grammar.
+  const tokens=normaliseWords(text),forms=targetWordForms(q.ans);
+  if(tokens.length<4||!tokens.some(t=>forms.has(t)))
+    return tNext(false,"“"+q.ans+"”: write a full sentence (at least four words) that uses the word, not just its meaning.");
+  $("tqmsg").textContent="Checking your sentence…";
+  let r;
+  try{
+    const out=await sample(`You are a strict but fair English grammar examiner. The learner must write ONE grammatically correct sentence using the target word "${q.ans}" (meaning: ${q.d}). Learner's sentence: "${text}". The learner may be typing quickly, so judge accuracy, not style. PASS only if ALL of these are true: (1) the target word, or a regular inflection of it with the same part of speech, is used with its correct meaning; (2) it is a complete sentence; (3) every aspect of grammar is correct: verb tense and form, subject-verb agreement, articles, prepositions, pronouns, plurals, word order, spelling, capital letters and end punctuation. A simple sentence is fine. Reply ONLY with JSON: {"pass":true|false,"reason":"one short sentence naming the main problem, or empty if pass","corrected":"the corrected full sentence, or empty if pass"}`,{cache:false});
+    r=JSON.parse(out.text.replace(/```json|```/g,"").trim());
+  }catch(e){
+    tskip++;$("tqmsg").textContent="I couldn’t check this one, so it won’t count either way.";
+    return tNext(false,null);
+  }
+  tNext(!!r.pass,r.pass?null:"Your sentence: “"+text+"”. "+(r.reason?r.reason+" ":"")+(r.corrected?"Corrected: “"+r.corrected+"”":""));
+}
+$("tqsubmit").onclick=submitT;
+$("tqinput").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();submitT();}});
 function endTest(){
-  const pass=ts>=4,idx=LV.indexOf(level);
-  $("rhead").textContent=`Level-up test · ${ts} / ${tq.length}`;
-  if(pass){
+  const total=tq.length-tskip,need=Math.ceil(total*0.75),pass=total>=3&&ts>=need,idx=LV.indexOf(level);
+  $("rhead").textContent="Level-up test · "+ts+" / "+total;
+  $("rreview").innerHTML="";
+  if(total<3){
+    $("rlevel").textContent="Test couldn’t finish";
+    $("rtext").textContent="Too many questions couldn’t be checked, so nothing has changed. Try again in a moment.";
+    $("rstart").textContent="Back to training";
+  }else if(pass){
     if(idx<LV.length-1){level=LV[idx+1];xp=0;}else{mastered=true;}
     save();confetti();chime();
     $("rlevel").textContent=mastered?"Mastery unlocked 🏆":"You’re now "+cap(level)+"!";
@@ -436,9 +516,11 @@ function endTest(){
   }else{
     xp=60;save();
     $("rlevel").textContent="Almost there";
-    $("rtext").textContent="You need 4 out of 5. Practise a little more, then try again. Your progress is back to 60 XP.";
+    $("rtext").textContent="You need "+need+" out of "+total+". Practise a little more, then try again. Your progress is back to 60 XP.";
     $("rstart").textContent="Back to training";
   }
+  if(tmiss.length){const h=document.createElement("li");h.style.listStyle="none";h.style.marginLeft="-18px";h.innerHTML="<b>Worth reviewing:</b>";$("rreview").appendChild(h);
+    tmiss.forEach(m=>{const li=document.createElement("li");li.textContent=m;$("rreview").appendChild(li);});}
   rAct=()=>startTraining(level);show("result");
 }
 
@@ -496,13 +578,22 @@ $("volumeSlider").addEventListener("input",()=>{if(testPlaying){clearTimeout(pre
 $("volumeSlider").addEventListener("change",()=>{clearTimeout(previewTimer);previewVoice();});
 $("rateSlider").addEventListener("change",()=>{clearTimeout(previewTimer);previewVoice();});
 
+function quizItem(k){
+  const q=QUIZ[k];
+  if(k%2===1){   // every second question is fill-in-the-blank, using the word's example sentence
+    const lw=Object.values(LEVELS).flat().find(x=>x.w===q.w),sent=lw&&blankOf(lw);
+    if(sent)return {sentence:sent,prompt:"Choose the word that best completes the sentence.",ans:q.w,opts:[q.w,...shufA(QUIZ.filter(x=>x.w!==q.w)).slice(0,3).map(x=>x.w)]};
+  }
+  return {prompt:"What does “"+q.w+"” mean?",ans:q.a,opts:q.o};
+}
 function renderQ(){
-  const q=QUIZ[qi]; $("qbar").style.width=(qi/QUIZ.length*100)+"%";
-  $("qtext").textContent=`What does “${q.w}” mean?`; $("qopts").innerHTML="";
-  [...q.o].sort(()=>Math.random()-.5).forEach(o=>{
+  const q=quizItem(qi); $("qbar").style.width=(qi/QUIZ.length*100)+"%";
+  $("qtext").textContent=q.prompt; $("qsent").textContent=q.sentence||""; $("qsent").classList.toggle("hide",!q.sentence);
+  $("qopts").innerHTML="";
+  shufA(q.opts).forEach(o=>{
     const b=document.createElement("button");b.className="opt";b.textContent=o;
-    b.onclick=()=>{ const ok=o===q.a; if(ok)qs++; b.classList.add(ok?"good":"bad");
-      [...$("qopts").children].forEach(x=>{x.disabled=true;if(x.textContent===q.a)x.classList.add("good");});
+    b.onclick=()=>{ const ok=o===q.ans; if(ok)qs++; b.classList.add(ok?"good":"bad");
+      [...$("qopts").children].forEach(x=>{x.disabled=true;if(x.textContent===q.ans)x.classList.add("good");});
       setTimeout(()=>{ if(++qi<QUIZ.length)renderQ(); else finishQuiz(); },800); };
     $("qopts").appendChild(b);
   });
@@ -511,7 +602,7 @@ function finishQuiz(){
   level=qs<=2?"beginner":qs<=4?"intermediate":"advanced";
   $("rlevel").textContent=level[0].toUpperCase()+level.slice(1);
   $("rtext").textContent=`You got ${qs} of ${QUIZ.length} right. Voca will teach you ${level}-level words, one at a time.`;
-  $("rhead").textContent="Your result";$("rstart").textContent="Start training";
+  $("rhead").textContent="Your result";$("rstart").textContent="Start training";$("rreview").innerHTML="";
   rAct=()=>{setLevel(level,true);startTraining(level);};
   show("result");
 }
@@ -525,11 +616,15 @@ function micTipsFill(code){
   const ul=$("micTips");if(!ul)return;ul.innerHTML="";
   const tips=[];
   if(code==="unsupported")tips.push("This browser has no speech recognition. Use Chrome or Edge, or type your answers.");
+  if(IN_APP)tips.push("You seem to be inside another app’s built-in browser (opened from a chat or social app). Open this page in Chrome or Safari itself.");
   if(navigator.brave)tips.push("Brave doesn’t support browser speech recognition. Use Chrome or Edge.");
   else if(/Firefox/i.test(navigator.userAgent))tips.push("Firefox doesn’t support speech recognition. Use Chrome or Edge.");
   if(code==="network")tips.push("Chrome sends your voice to Google’s speech service. A VPN, firewall, ad blocker or privacy extension can block it even when your internet works. Try turning them off, or try Edge.");
-  if(code==="not-allowed"||code==="service-not-allowed")tips.push("Allow the microphone for this site: click the 🔒 icon in the address bar, then Permissions.");
-  if(code==="audio-capture")tips.push("Check that a microphone is connected and not being used by another app.");
+  if(code==="not-allowed"||code==="service-not-allowed")tips.push("Allow the microphone for this site: tap the 🔒 icon in the address bar, then Permissions.");
+  if(code==="audio-capture"||code==="noaudio")tips.push("The microphone didn’t open. Check the browser’s microphone permission, close other apps or tabs that use the mic, and unplug or reconnect headphones.");
+  if(code==="silent")tips.push("The mic opened but heard no speech. Speak closer to the phone as soon as it says Listening, and check the right microphone is selected.");
+  if(IS_IOS)tips.push("On iPhone and iPad, speech recognition needs Dictation turned on (Settings → General → Keyboard → Enable Dictation) and works best in Safari.");
+  if(IS_ANDROID)tips.push("On Android, make sure Chrome may use the microphone (Settings → Apps → Chrome → Permissions) and that “Speech Recognition and Synthesis from Google” is installed and up to date in the Play Store.");
   if(location.protocol==="file:")tips.push("This page is opened as a local file, where browsers often block or forget the microphone. Hosting it on https (for example GitHub Pages) is the reliable fix.");
   tips.forEach(t=>{const li=document.createElement("li");li.textContent=t;ul.appendChild(li);});
 }
@@ -543,6 +638,8 @@ function pickVoice(){
   return en.find(v=>v.localService&&/^en[-_](US|IN|GB)/i.test(v.lang))||en.find(v=>v.localService)||null;
 }
 const IS_ANDROID=/Android/i.test(navigator.userAgent);
+const IS_IOS=/iPhone|iPad|iPod/i.test(navigator.userAgent);
+const IN_APP=/FBAN|FBAV|Instagram|MicroMessenger|Snapchat|; wv\)|Line\//i.test(navigator.userAgent);
 const SLOW_RATE=IS_ANDROID?.7:.45;   // Android's speech engine distorts at very low rates
 function say(t,rate,quiet,force){
   if(!quiet)log("a",t);
@@ -563,7 +660,7 @@ function say(t,rate,quiet,force){
 function micOff(){listening=false;$("mic").classList.remove("on");}
 function stopMic(){ if(dict){dict.stop().catch(()=>{});} if(rec){try{rec.onend=null;rec.abort();}catch(e){} rec=null;} micOff(); }
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-async function startMic(){
+async function startMic(delay){
   got=false;
   if(micOptOut){status("Microphone is turned off in Settings. Turn it on to speak, or type your answer.");return;}
   if(dict){   // must stay synchronous: dictation can only start straight from a tap
@@ -571,36 +668,54 @@ async function startMic(){
     dict.start().then(()=>{if(!micEnabled){micEnabled=true;updateMicSettingUI();}}).catch(e=>{micOff();status(e&&e.code==="not_granted"?"Microphone permission was declined — type your answer below.":"Couldn’t start the mic — type your answer below.");});
     return;
   }
-  if(!SR){status("Voice input isn’t available in this browser — type your answer below.");return;}
-  const my=session; let finalText="",errCode="";
-  // No getUserMedia pre-check here: on Android it can keep the mic busy so recognition hears nothing.
-  // SpeechRecognition asks for permission itself, and this call stays inside the user's tap.
-  if(IS_ANDROID)await wait(250);   // give the phone's audio a moment to switch from speaking to listening
+  if(!SR){status(IN_APP?"This in-app browser can’t do speech recognition. Open this page in Chrome or Safari itself, or type your answer below.":"Voice input isn’t available in this browser — type your answer below.");return;}
+  const my=session; let finalText="",lastHeard="",errCode="",t0=0,gotAudio=false,gotSpeech=false;
+  // The recognition object is created and started inside the tap itself (phones insist on this).
+  // Only wait if Lexi was speaking when the tap happened, so the phone can switch from speaking to listening.
+  if(delay)await wait(delay);
   if(my!==session)return;
-  rec=new SR(); rec.lang=/^en/i.test(navigator.language||"")?navigator.language:"en-US"; rec.interimResults=true; rec.continuous=false; rec.maxAlternatives=1;
-  rec.onstart=()=>{if(!micEnabled){micEnabled=true;updateMicSettingUI();}};
-  rec.onresult=e=>{   // rebuild from every result each time: some phones resend earlier results, which used to duplicate words
-    let f="",it="";for(let k=0;k<e.results.length;k++){const r=e.results[k];if(r.isFinal)f+=r[0].transcript;else it+=r[0].transcript;}
-    if(f)finalText=f;status("Hearing: "+(f+it));
+  const begin=lang=>{
+    const r=new SR();rec=r;let retried=false;
+    r.lang=lang;r.interimResults=true;r.continuous=false;r.maxAlternatives=1;
+    r.onstart=()=>{t0=Date.now();if(!micEnabled){micEnabled=true;updateMicSettingUI();}};
+    r.onaudiostart=()=>{gotAudio=true;};
+    r.onspeechstart=()=>{gotSpeech=true;};
+    r.onresult=e=>{   // rebuild from every result each time: some phones resend earlier results
+      let f="",it="";for(let k=0;k<e.results.length;k++){const x=e.results[k];if(x.isFinal)f+=x[0].transcript;else it+=x[0].transcript;}
+      if(f)finalText=f;lastHeard=(f+it).trim()||lastHeard;status("Hearing: "+(f+it));
+    };
+    r.onerror=e=>{
+      errCode=e.error;
+      if(e.error==="language-not-supported"&&lang!=="en-US"){retried=true;errCode="";begin("en-US");return;}
+      if(e.error==="not-allowed"||e.error==="service-not-allowed"){micEnabled=false;updateMicSettingUI();
+        status(IS_IOS?"Speech recognition is blocked. On iPhone, turn on Dictation (Settings → General → Keyboard) and allow the microphone for this site.":"Microphone permission is blocked for this site. Tap the 🔒 icon in the address bar → Permissions, allow the microphone, then tap the mic again.");}
+      else if(e.error==="no-speech")status("I didn’t hear anything — tap the mic and try again.");
+      else if(e.error==="audio-capture")status("No microphone found, or another app is using it. Close other apps that use the mic and try again.");
+      else if(e.error==="network")status("Couldn’t reach the speech service. This isn’t always an internet problem: try Chrome or Edge, or turn off any VPN or ad blocker. You can also type your answer.");
+      else if(e.error!=="aborted")status("Mic error ("+e.error+") — try again or type.");
+    };
+    r.onend=()=>{
+      if(retried)return;   // a second attempt took over
+      micOff();rec=null;
+      // Some phones never mark a result as final; fall back to the last words heard.
+      const text=(finalText||lastHeard).trim();
+      const quick=t0&&Date.now()-t0<700&&!gotAudio&&!errCode;
+      if(micTest){micTest=false;
+        const parts="Mic opened: "+(gotAudio?"yes":"no")+" · Heard speech: "+(gotSpeech?"yes":"no")+" · Text: "+(text?"yes":"no");
+        if(text){micOut("✅ Heard: “"+text+"”. The microphone works. ("+parts+")");$("micTips").innerHTML="";}
+        else{micOut(($("micCheckOut").textContent||"The mic started but produced no text.")+"  ("+parts+")");micTipsFill(errCode||(gotAudio?"silent":"noaudio"));}
+        return;}
+      if(my!==session)return;
+      if(text){got=true;if(pronunciationMode)evaluatePronunciation(text);else handle(text);}
+      else if(!errCode)status(quick?"The mic closed straight away. Another app may be using the microphone, or Google’s speech service isn’t available. Close other apps and try again, or type your answer.":"Didn’t catch that — tap the mic to try again.");
+    };
+    r.start();
   };
-  rec.onerror=e=>{
-    errCode=e.error;
-    if(e.error==="not-allowed"||e.error==="service-not-allowed"){micEnabled=false;updateMicSettingUI();status("Microphone permission is blocked for this site. Allow it in Chrome’s site settings (🔒 icon → Permissions), then tap the mic again.");}
-    else if(e.error==="no-speech")status("I didn’t hear anything — tap the mic and try again.");
-    else if(e.error==="audio-capture")status("No microphone found, or another app is using it. Close other apps that use the mic and try again.");
-    else if(e.error==="network")status("Couldn’t reach the speech service. This isn’t always an internet problem: try Chrome or Edge, or turn off any VPN or ad blocker. You can also type your answer.");
-    else if(e.error!=="aborted")status("Mic error ("+e.error+") — try again or type.");
-  };
-  rec.onend=()=>{
-    micOff();rec=null;
-    if(micTest){micTest=false;if(finalText.trim()){micOut("✅ Heard: “"+finalText.trim()+"”. The microphone works.");$("micTips").innerHTML="";}else{if(!errCode)micOut("The mic started but heard nothing. Tap Test again and speak as soon as it says Listening.");micTipsFill(errCode);}return;}
-    if(my!==session)return;
-    if(finalText.trim()){got=true;if(pronunciationMode)evaluatePronunciation(finalText.trim());else handle(finalText.trim());}
-    else if(!errCode)status("Didn’t catch that — tap the mic to try again.");
-  };
-  try{rec.start();listening=true;$("mic").classList.add("on");status("Listening… speak now");}catch(e){status("Couldn’t start the mic — type below.");}
+  try{begin(/^en/i.test(navigator.language||"")?navigator.language:"en-US");listening=true;$("mic").classList.add("on");status("Listening… speak now");}
+  catch(e){status("Couldn’t start the mic — type below.");}
 }
-function autoListen(){ if(!dict&&SR&&!IS_ANDROID)startMic(); else status("Tap the mic and say your sentence."); }
+function autoListen(){ if(!dict&&SR&&!IS_ANDROID&&!IS_IOS)startMic();   // phones only allow the mic to start from a tap
+   else status("Tap the mic and say your sentence."); }
 
 /* ---------- training ---------- */
 function getWordStat(word){return wordStats[word]||{attempts:0,correct:0,streak:0,wrong:0,lastSeen:0};}
@@ -770,7 +885,7 @@ async function pronRound(first){
 }
 $("pron").onclick=()=>pronRound(true);
 $("slow").onclick=()=>pronRound(false);
-$("mic").onclick=()=>{unlock(); try{speechSynthesis.cancel();}catch(e){} if(listening){session++;stopMic();status("Paused.");} else {session++;startMic();} };
+$("mic").onclick=()=>{unlock(); const wasSpeaking=!!(window.speechSynthesis&&(speechSynthesis.speaking||speechSynthesis.pending)); try{speechSynthesis.cancel();}catch(e){} if(listening){session++;stopMic();status("Paused.");} else {session++;startMic(wasSpeaking?250:0);} };
 $("next").onclick=next; $("rep").onclick=repeat;
 function submitTypedAnswer(){
   const field=$("t");
