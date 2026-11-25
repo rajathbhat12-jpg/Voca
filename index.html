@@ -574,7 +574,7 @@ $("volumeSlider").oninput=e=>{
   $("volumeValue").textContent=Math.round(voiceSettings.volume*100)+"%";
   saveSettings();
 };
-$("voiceSelect").onchange=e=>{voiceSettings.voiceURI=e.target.value;saveSettings();};
+$("voiceSelect").onchange=e=>{voiceSettings.voiceURI=e.target.value;voiceSettings.manual=true;saveSettings();};
 $("rateSlider").oninput=e=>{
   voiceSettings.rate=Number(e.target.value);
   $("rateValue").textContent=voiceSettings.rate.toFixed(2).replace(/0$/,"")+"×";
@@ -650,13 +650,19 @@ function micTipsFill(code){
   tips.forEach(t=>{const li=document.createElement("li");li.textContent=t;ul.appendChild(li);});
 }
 function status(t){$("status").textContent=t;if(micTest)micOut(t);}
+// Prefer a natural-sounding female English voice by default (e.g. Zira, Aria, Jenny, Heera on Windows; Samantha on Mac).
+const FEMALE_VOICE=/zira|aria|jenny|heera|neerja|samantha|karen|moira|tessa|susan|hazel|veena|fiona|serena|libby|sonia|michelle|natasha|ava\b|emma|female|google uk english female/i;
+function bestVoice(list){
+  const en=list.filter(v=>/^en([-_]|$)/i.test(v.lang));
+  if(!en.length)return null;
+  const score=v=>(FEMALE_VOICE.test(v.name)?10:0)+(/natural|neural/i.test(v.name)?3:0)+(/^en[-_](US|IN|GB)/i.test(v.lang)?2:0)+(v.localService?1:0);
+  return en.slice().sort((a,b)=>score(b)-score(a))[0];
+}
 function pickVoice(){
   const vs=speechSynthesis.getVoices();
   const saved=vs.find(v=>v.voiceURI===voiceSettings.voiceURI);
-  if(saved)return saved;
-  // Prefer an on-device English voice: online voices can sound distorted on weak connections or some Android phones.
-  const en=vs.filter(v=>/^en([-_]|$)/i.test(v.lang));
-  return en.find(v=>v.localService&&/^en[-_](US|IN|GB)/i.test(v.lang))||en.find(v=>v.localService)||null;
+  if(saved&&voiceSettings.manual)return saved;   // only a voice the learner chose themselves is kept
+  return bestVoice(vs);
 }
 const IS_ANDROID=/Android/i.test(navigator.userAgent);
 const IS_IOS=/iPhone|iPad|iPod/i.test(navigator.userAgent);
@@ -862,7 +868,7 @@ async function handle(text,fromVoice){
     if(heard){
       text=text.replace(new RegExp("\\b"+heard.replace(/[^a-z'-]/g,"")+"\\b","i"),w.w);
       tokens=normaliseWords(text);exact=true;
-      log("a",`I heard “${heard}” and counted it as “${w.w}”. Speech recognition can mishear rare words.`);
+      log("a",`I heard “${heard}” and counted it as “${w.w}”. That is your browser’s speech recognition mishearing a rare word, not a mistake by you, so your answer is being scored as if you said “${w.w}”.`);
     }
   }
   if(fromVoice)typo="";
@@ -1003,8 +1009,8 @@ function populateVoices(){
   sel.innerHTML="";
   if(!voices.length){const o=document.createElement("option");o.value="";o.textContent="No installed English voices found";sel.appendChild(o);return;}
   voices.forEach(v=>{const o=document.createElement("option");o.value=v.voiceURI;o.textContent=`${v.name} (${v.lang})${v.default?" · default":""}${v.localService?" · on device":" · online"}`;sel.appendChild(o);});
-  if(voices.some(v=>v.voiceURI===current))sel.value=current;
-  else{const preferred=voices.find(v=>v.localService&&/^en[-_](US|IN|GB)/i.test(v.lang))||voices.find(v=>v.localService)||voices.find(v=>/google.*english|english.*(us|united states)/i.test(v.name+" "+v.lang))||voices[0];sel.value=preferred.voiceURI;voiceSettings.voiceURI=preferred.voiceURI;saveSettings();}
+  if(voiceSettings.manual&&voices.some(v=>v.voiceURI===current))sel.value=current;
+  else{const preferred=bestVoice(voices)||voices[0];if(preferred){sel.value=preferred.voiceURI;voiceSettings.voiceURI=preferred.voiceURI;saveSettings();}}
 }
 function syncSettingsUI(){
   $("volumeSlider").value=voiceSettings.volume;
