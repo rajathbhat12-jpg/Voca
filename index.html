@@ -118,7 +118,7 @@ button.big{padding:14px 26px;font-size:17px}
   <div class="chips">
     <span class="chip">🎙️ Speak or type</span><span class="chip">✍️ Grammar fixes</span><span class="chip">🔊 Slow pronunciation</span><span class="chip">🎉 Level-up tests</span><span class="chip">💾 Saved on this device</span>
   </div>
-  <p class="sub fine">Your progress is saved on this device. When AI checking is available, the sentences you submit are sent to an AI model to be graded.</p>
+  <p class="sub fine">Your progress is saved on this device. When AI checking is available, the sentences you submit are sent to an AI model hosted by Cloudflare to be graded. Voca does not store them.</p>
 </section>
 
 <section id="settings" class="hide">
@@ -183,7 +183,7 @@ button.big{padding:14px 26px;font-size:17px}
 </section>
 
 <section id="train" class="hide">
-  <div class="card hide" id="basicNote" role="status" style="border-color:var(--bad)"><b>Basic check mode</b><p class="sub" style="margin:4px 0 0">AI sentence checking isn’t available in this view, so Voca only checks that you used the word in a sentence of four or more words. It can’t judge whether the meaning is right, and it can’t check or correct your grammar.</p></div>
+  <div class="card hide" id="basicNote" role="status" style="border-color:var(--bad)"><b>Basic check mode</b><p class="sub" style="margin:4px 0 0">AI sentence checking isn’t available right now (it may be busy or at its free daily limit), so Voca only checks that you used the word in a sentence of four or more words. It can’t judge whether the meaning is right, and it can’t check or correct your grammar.</p></div>
   <div class="card" style="padding:14px 18px"><div class="xpl"><b id="xplabel"></b><span id="xpnum"></span></div><div class="bar" style="margin:0"><i id="xpbar" style="width:0"></i></div></div>
   <div class="card ucard hide" id="ucard"><b>🔓 Level-up test unlocked</b><p class="sub" style="margin:4px 0 10px">A mixed test with no hints. Get about 4 out of 5 right to move up.</p><button class="pri" id="utest">Take the level-up test</button></div>
   <div class="bar" title="Session progress"><i id="tbar" style="width:0"></i></div>
@@ -316,18 +316,39 @@ advanced:[
 };
 const LV=["beginner","intermediate","advanced"];const cap=s=>s[0].toUpperCase()+s.slice(1);
 let micStream=null,micEnabled=false,micOptOut=false,micTest=false,sampleSettled=false,tbarMax=0,voiceSettings={voiceURI:"",volume:1,rate:.95,theme:""};
-let xp=0,mastered=false,rAct=()=>{},level="beginner",words=[],i=-1,score=0,tried=0,qi=0,qs=0,session=0,busy=false,listening=false,got=false,rec=null,dict=null,sample=null,pronunciationMode=false,wordStats={},reviewCounts={};
+let xp=0,mastered=false,rAct=()=>{},level="beginner",words=[],i=-1,score=0,tried=0,qi=0,qs=0,session=0,busy=false,listening=false,got=false,rec=null,dict=null,sample=null,pronunciationMode=false,wordStats={},reviewCounts={},credit={};
 
 /* ---------- capabilities ---------- */
 function refreshBasicNote(){$("basicNote").classList.toggle("hide",!!sample||!sampleSettled);}
+
+/* ---------- AI grading on your own site ---------- */
+// Inside Claude's viewer, window.claude supplies the grader. Anywhere else, grading goes to a small Cloudflare Worker (voca-grade-worker.js).
+const GRADE_URL="https://voca-grade.rajathbhat12.workers.dev/grade";   // set to "" to turn AI grading off
+let aiCool=0;   // after a failure, skip the AI for 90 seconds so answers aren't held up by repeated timeouts
+const aiReady=()=>!!sample&&Date.now()>=aiCool;
+async function gradeViaWorker(prompt){
+  if(Date.now()<aiCool)throw new Error("AI cooling down");
+  const ctl=new AbortController(),t=setTimeout(()=>ctl.abort(),15000);
+  try{
+    const res=await fetch(GRADE_URL,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({prompt}),signal:ctl.signal});
+    if(!res.ok)throw new Error("grader "+res.status);
+    const data=await res.json();
+    if(!data||typeof data.text!=="string")throw new Error("grader sent no text");
+    aiCool=0;return {text:data.text};
+  }catch(e){aiCool=Date.now()+90000;throw e;}
+  finally{clearTimeout(t);}
+}
 try{ if(window.claude){
   window.claude.use("sample").then(s=>{sample=s}).catch(()=>{}).finally(()=>{sampleSettled=true;refreshBasicNote();});
   window.claude.use("dictation").then(d=>{ if(!d)return; dict=d;
     d.onPartial(({text})=>status("Hearing: "+text));
-    d.onFinal(({text})=>{ if(got||!text.trim())return; got=true; micOff(); d.stop().catch(()=>{}); if(micTest){micTest=false;micOut("✅ Heard: “"+text.trim()+"”. The microphone works.");return;} if(pronunciationMode)evaluatePronunciation(text.trim());else handle(text.trim()); });
+    d.onFinal(({text})=>{ if(got||!text.trim())return; got=true; micOff(); d.stop().catch(()=>{}); if(micTest){micTest=false;micOut("✅ Heard: “"+text.trim()+"”. The microphone works.");return;} if(pronunciationMode)evaluatePronunciation(text.trim());else handle(text.trim(),true); });
     d.onState(({state})=>{ if(state==="idle"&&listening){ micOff(); if(!got)status("Didn’t catch that — tap the mic to try again."); micTest=false; } });
   }).catch(()=>{});
-}else{sampleSettled=true;}}catch(e){sampleSettled=true;}
+}else{
+  if(GRADE_URL&&/^https?:$/.test(location.protocol))sample=gradeViaWorker;
+  sampleSettled=true;refreshBasicNote();
+}}catch(e){sampleSettled=true;}
 
 /* ---------- sound + confetti ---------- */
 let ac;
@@ -442,7 +463,7 @@ function startTest(){
   const seen=shufA(pool.filter(x=>getWordStat(x.w).attempts>0)),unseen=shufA(pool.filter(x=>getWordStat(x.w).attempts===0));
   const picks=[...seen,...unseen].slice(0,5);
   // A sentence-writing challenge needs the AI to judge grammar, so it only appears when AI checking is available.
-  const plan=[...shufA(["meaning","blank","recall","blank"]),sample?"sentence":"meaning"];
+  const plan=[...shufA(["meaning","blank","recall","blank"]),aiReady()?"sentence":"meaning"];
   tq=picks.map((w,k)=>makeChallenge(plan[k],w,pool));
   ti=0;ts=0;tskip=0;tmiss=[];tbusy=false;show("test");renderT();
 }
@@ -484,12 +505,12 @@ async function submitT(){
   }
   // Sentence challenge: quick local checks first, then the AI judges every aspect of grammar.
   const tokens=normaliseWords(text),forms=targetWordForms(q.ans);
-  if(tokens.length<4||!tokens.some(t=>forms.has(t)))
+  if(tokens.length<4||!tokens.some(t=>forms.has(t))||!isRealSentence(tokens,forms))
     return tNext(false,"“"+q.ans+"”: write a full sentence (at least four words) that uses the word, not just its meaning.");
   $("tqmsg").textContent="Checking your sentence…";
   let r;
   try{
-    const out=await sample(`You are a strict but fair English grammar examiner. The learner must write ONE grammatically correct sentence using the target word "${q.ans}" (meaning: ${q.d}). Learner's sentence: "${text}". The learner may be typing quickly, so judge accuracy, not style. PASS only if ALL of these are true: (1) the target word, or a regular inflection of it with the same part of speech, is used with its correct meaning; (2) it is a complete sentence; (3) every aspect of grammar is correct: verb tense and form, subject-verb agreement, articles, prepositions, pronouns, plurals, word order, spelling, capital letters and end punctuation. A simple sentence is fine. Reply ONLY with JSON: {"pass":true|false,"reason":"one short sentence naming the main problem, or empty if pass","corrected":"the corrected full sentence, or empty if pass"}`,{cache:false});
+    const out=await withTimeout(sample(`You are a strict but fair English grammar examiner. The learner must write ONE grammatically correct sentence using the target word "${q.ans}" (meaning: ${q.d}). Learner's sentence: "${text}". The learner may be typing quickly, so judge accuracy, not style. PASS only if ALL of these are true: (1) the target word, or a regular inflection of it with the same part of speech, is used with its correct meaning; (2) it is a complete sentence; (3) every aspect of grammar is correct: verb tense and form, subject-verb agreement, articles, prepositions, pronouns, plurals, word order, spelling, capital letters and end punctuation. A simple sentence is fine. Reply ONLY with JSON: {"pass":true|false,"reason":"one short sentence naming the main problem, or empty if pass","corrected":"the corrected full sentence, or empty if pass"}`,{cache:false}),20000);
     r=JSON.parse(out.text.replace(/```json|```/g,"").trim());
   }catch(e){
     tskip++;$("tqmsg").textContent="I couldn’t check this one, so it won’t count either way.";
@@ -706,7 +727,7 @@ async function startMic(delay){
         else{micOut(($("micCheckOut").textContent||"The mic started but produced no text.")+"  ("+parts+")");micTipsFill(errCode||(gotAudio?"silent":"noaudio"));}
         return;}
       if(my!==session)return;
-      if(text){got=true;if(pronunciationMode)evaluatePronunciation(text);else handle(text);}
+      if(text){got=true;if(pronunciationMode)evaluatePronunciation(text);else handle(text,true);}
       else if(!errCode)status(quick?"The mic closed straight away. Another app may be using the microphone, or Google’s speech service isn’t available. Close other apps and try again, or type your answer.":"Didn’t catch that — tap the mic to try again.");
     };
     r.start();
@@ -727,7 +748,7 @@ function chooseWords(l){
   return pool.slice(0,6);
 }
 function startTraining(l){
-  level=l; words=chooseWords(l);reviewCounts={};save();
+  level=l; words=chooseWords(l);reviewCounts={};credit={};save();
   i=-1;score=0;tried=0;refreshBasicNote();tbarMax=0;$("score").textContent="Score 0/0";$("log").innerHTML="";show("train");unlock();updateXp();next();
 }
 async function next(){
@@ -797,6 +818,21 @@ function findMisspelling(tokens,target){
   const max=target.length>=8?2:1;
   return tokens.find(t=>!accepted.has(t)&&!ALLWORDS.has(t)&&t[0]===target[0]&&Math.abs(t.length-target.length)<=max&&editDistance(t,target)<=max)||"";
 }
+// Speech recognition often mishears rare words ("pellucid" -> "pelusid"). For spoken answers only, a close non-word counts as the target.
+// Real derived words ("essentially" for "essential") are left alone so they are not credited by mistake.
+function findHeardAs(tokens,target){
+  const accepted=targetWordForms(target),stem=target.replace(/e$/,"");
+  const derived=/^(s|es|d|ed|ing|ly|ness|ity|er|ers|ion|ions|ment|al|ally|y)$/;
+  const max=target.length>=7?Math.max(2,Math.round(target.length*.34)):1;
+  return tokens.find(t=>t.length>=4&&!accepted.has(t)&&!ALLWORDS.has(t)
+    &&!(t.startsWith(stem)&&derived.test(t.slice(stem.length)))
+    &&Math.abs(t.length-target.length)<=3&&editDistance(t,target)<=max)||"";
+}
+// A real sentence needs the target word plus other words; "reluctant reluctant reluctant reluctant" is not one.
+function isRealSentence(tokens,accepted){
+  return tokens.filter(t=>!accepted.has(t)).length>=3&&new Set(tokens).size>=4;
+}
+function withTimeout(p,ms){let t;return Promise.race([p,new Promise((_,rej)=>{t=setTimeout(()=>rej(new Error("timeout")),ms);})]).finally(()=>clearTimeout(t));}
 function localCheck(text,w){
   const tokens=normaliseWords(text), target=w.w.toLowerCase();
   const accepted=targetWordForms(target);
@@ -805,18 +841,31 @@ function localCheck(text,w){
   if(!hasTargetForm && typo)return {correct:false,spellingCorrection:typo+" → "+target,feedback:`You were close! The target word is ${target}. Try the full sentence again using the correct word form.`,better:""};
   if(tokens.length<4)return {correct:false,tooShort:true,feedback:`You've said the word, but I need a complete sentence to check how you use it. Try something like: ${w.e}`,better:""};
   if(!hasTargetForm)return {correct:false,feedback:`I couldn't find ${target} or a recognised grammatical form of it. Try again.`,better:""};
+  if(!isRealSentence(tokens,accepted))return {correct:false,tooShort:true,feedback:`That repeats the word instead of making a sentence. Use ${target} together with other words, like: ${w.e}`,better:""};
   return {correct:true,feedback:"You used the target word or a grammatical form of it in a complete sentence. Nice work!",better:""};
 }
 
-async function handle(text){
+async function handle(text,fromVoice){
   if(busy)return;
   log("u",text); status("");
-  if(/^(next|skip|new word|another)\b/i.test(text))return next();
-  if(/^(repeat|again|say that again)\b/i.test(text))return repeat();
+  // Commands only count when the utterance is short: "Another day, he felt reluctant to speak" is a sentence, not a command.
+  const wc=normaliseWords(text).length;
+  if(wc<=3&&/^(next|skip|new word|another)\b/i.test(text))return next();
+  if(wc<=3&&/^(repeat|again|say that again)\b/i.test(text))return repeat();
   const w=words[i]; if(!w)return;
-  const tokens=normaliseWords(text), target=w.w.toLowerCase();
+  let tokens=normaliseWords(text); const target=w.w.toLowerCase();
   const acceptedForms=targetWordForms(target);
-  const exact=tokens.some(t=>acceptedForms.has(t)), typo=findMisspelling(tokens,target);
+  let exact=tokens.some(t=>acceptedForms.has(t)), typo=findMisspelling(tokens,target);
+  if(fromVoice&&!exact){
+    // A spoken word can't be misspelled, but it can be misheard: swap a close-sounding non-word for the target and say so.
+    const heard=findHeardAs(tokens,target);
+    if(heard){
+      text=text.replace(new RegExp("\\b"+heard.replace(/[^a-z'-]/g,"")+"\\b","i"),w.w);
+      tokens=normaliseWords(text);exact=true;
+      log("a",`I heard “${heard}” and counted it as “${w.w}”. Speech recognition can mishear rare words.`);
+    }
+  }
+  if(fromVoice)typo="";
   // Catch a one-word answer before asking the AI to grade it.
   if(tokens.length<4){
     const r=localCheck(text,w);
@@ -835,12 +884,17 @@ async function handle(text){
   try{
     if(!sample)throw new Error("AI evaluator unavailable");
     status("Voca is checking your sentence…");
-    const out=await sample(`You are Voca, a careful vocabulary and writing coach. Target word: "${w.w}" meaning "${w.d}". Learner sentence: "${text}". Evaluate strictly. Requirements: (1) Accept the target word itself OR a grammatically correct inflected form of the same word (for example, scrutinize, scrutinizes, scrutinized, scrutinizing). Do not require the base form when the sentence naturally requires another tense or grammatical form. Do not accept merely related words with a different part of speech or meaning. (2) The response must be a genuine sentence with at least four words; repeating only the target word is NOT a sentence and is NOT correct. (3) Judge whether the target word is used with the right meaning and naturally in context. (4) If the target word is misspelled, identify the learner's spelling and provide the correct spelling; do not mark correct. (5) If the sentence is too short or only repeats the word, ask for a full sentence. (6) Also check grammar, verb tense, subject-verb agreement, articles, prepositions and word order across the whole sentence. If there is ANY grammatical error, set grammarOk to false, put the corrected full sentence in "corrected" (keep the learner's meaning and keep the target word), and name the fix briefly in "grammarNote" (for example: use went instead of goes for past tense). Never tell the learner to move on when there is a grammar error. Set grammarOk to true only when the whole sentence is grammatically correct. Be supportive but never praise an incorrect answer as correct. Vary encouraging feedback. ${hint}Reply ONLY valid JSON with keys: {"correct":boolean,"feedback":"one or two short spoken sentences","better":"a corrected example sentence, or empty string","spellingCorrection":"wrong spelling → correct spelling, or empty string","tooShort":boolean,"grammarOk":boolean,"corrected":"corrected full sentence, or empty string","grammarNote":"short explanation of the fix, or empty string"}.`,{cache:false});
+    const out=await withTimeout(sample(`You are Voca, a careful vocabulary and writing coach. Target word: "${w.w}" meaning "${w.d}". Learner sentence: "${text}". Evaluate strictly. Requirements: (1) Accept the target word itself OR a grammatically correct inflected form of the same word (for example, scrutinize, scrutinizes, scrutinized, scrutinizing). Do not require the base form when the sentence naturally requires another tense or grammatical form. Do not accept merely related words with a different part of speech or meaning. (2) The response must be a genuine sentence with at least four words; repeating only the target word is NOT a sentence and is NOT correct. (3) Judge whether the target word is used with the right meaning and naturally in context. (4) If the target word is misspelled, identify the learner's spelling and provide the correct spelling; do not mark correct. (5) If the sentence is too short or only repeats the word, ask for a full sentence. (6) Also check grammar, verb tense, subject-verb agreement, articles, prepositions and word order across the whole sentence. If there is ANY grammatical error, set grammarOk to false, put the corrected full sentence in "corrected" (keep the learner's meaning and keep the target word), and name the fix briefly in "grammarNote" (for example: use went instead of goes for past tense). Never tell the learner to move on when there is a grammar error. Set grammarOk to true only when the whole sentence is grammatically correct. Be supportive but never praise an incorrect answer as correct. Vary encouraging feedback. ${hint}Reply ONLY valid JSON with keys: {"correct":boolean,"feedback":"one or two short spoken sentences","better":"a corrected example sentence, or empty string","spellingCorrection":"wrong spelling → correct spelling, or empty string","tooShort":boolean,"grammarOk":boolean,"corrected":"corrected full sentence, or empty string","grammarNote":"short explanation of the fix, or empty string"}.`,{cache:false}),20000);
     r=JSON.parse(out.text.replace(/```json|```/g,"").trim());
     // Apply deterministic safeguards even if the model is overly generous.
+    if(fromVoice)r.spellingCorrection="";   // a spoken word can't be "misspelled"
     if(!exact)r.correct=false;
-    if(tokens.length<4){r.correct=false;r.tooShort=true;}
-  }catch(e){r=localCheck(text,w);$("basicNote").classList.remove("hide");}
+    if(tokens.length<4||!isRealSentence(tokens,acceptedForms)){r.correct=false;r.tooShort=true;r.feedback="";}
+  }catch(e){
+    // AI timed out, hit its free daily limit, or is off: fall back to the basic check and say so (no silent downgrade).
+    r=localCheck(text,w);$("basicNote").classList.remove("hide");
+    if(fromVoice)r.spellingCorrection="";
+  }
   if(r.tooShort || r.spellingCorrection){
     busy=false;
     await say(r.feedback || (r.spellingCorrection?`The correct spelling is ${target}. Try the full sentence again.`:`Please use ${target} in a complete sentence.`));
@@ -850,13 +904,26 @@ async function handle(text){
   if(r.correct&&!r.feedback)r.feedback=["Well done! You used that naturally.","Nice work! Keep that momentum going.","Great sentence. You used that word well."][Math.floor(Math.random()*3)];
   if(!r.correct&&!r.feedback)r.feedback=["No worries. That is what practice is for.","Not quite yet, but you are learning. Let's try a different approach.","Don't give up. We'll come back to this one."][Math.floor(Math.random()*3)];
   const grammarIssue=!!r.correct&&r.grammarOk===false;
-  const was=xp; tried++;saveWordResult(w.w,!!r.correct);if(r.correct){for(let k=words.length-1;k>i;k--)if(words[k].w===w.w)words.splice(k,1);}
-  if(r.correct&&!grammarIssue){score++;if(!mastered)xp=Math.min(100,xp+10);updateXp();confetti();chime();}
-  else if(grammarIssue){if(!mastered)xp=Math.min(100,xp+5);updateXp();}
+  // XP is earned once per word per session: 5 for a correct word with a grammar slip, 10 for a clean sentence
+  // (fixing the slip later pays the 5-point difference). Repeating a credited answer earns nothing.
+  const prior=credit[w.w]||0, full=grammarIssue?5:10;
+  const repeatCredit=!!r.correct&&prior>=full;
+  if(repeatCredit&&!grammarIssue){
+    busy=false; status("You already earned full credit for this word. Say next for a new one.");
+    await say("Nice, but you already earned full credit for this word. Say next for another one.");
+    return;
+  }
+  const was=xp;
+  if(!repeatCredit){tried++;saveWordResult(w.w,!!r.correct);}
+  if(r.correct){for(let k=words.length-1;k>i;k--)if(words[k].w===w.w)words.splice(k,1);}
+  const gain=r.correct?Math.max(0,full-prior):0;
+  if(r.correct)credit[w.w]=Math.max(prior,full);
+  if(r.correct&&!grammarIssue){score++;if(!mastered)xp=Math.min(100,xp+gain);updateXp();confetti();chime();}
+  else if(grammarIssue){if(!mastered&&gain)xp=Math.min(100,xp+gain);if(gain)updateXp();}
   else{const count=reviewCounts[w.w]||0;const pending=words.slice(i+1).some(x=>x.w===w.w);if(count<2&&!pending){reviewCounts[w.w]=count+1;words.splice(Math.min(i+3,words.length),0,w);}}
   $("score").textContent=`Score ${score}/${tried}`;
   const unl=r.correct&&was<100&&xp>=100&&!mastered;
-  busy=false; status(grammarIssue?"Word used correctly, but there's a grammar fix. +5 XP.":"");
+  busy=false; status(grammarIssue?(gain?`Word used correctly, but there's a grammar fix. +${gain} XP.`:"Word used correctly, but there's still a grammar fix. No extra XP."):"");
   let spoken;
   if(grammarIssue){
     const fix=r.corrected||r.better;
