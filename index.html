@@ -32,7 +32,7 @@ button.pri{background:var(--ac);color:var(--acfg);border:0;font-weight:600;paddi
 #status{text-align:center;color:var(--mut);font-size:14px;min-height:22px}
 form{display:flex;gap:8px;margin-top:10px}
 input{flex:1;font:inherit;padding:10px 14px;border-radius:999px;border:1px solid var(--bd);background:var(--card);color:var(--fg)}
-.hide{display:none}
+.hide{display:none!important}
 #cv{position:fixed;inset:0;pointer-events:none;z-index:20}
 .topnav{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:18px}
 .brand{font-weight:750;letter-spacing:-.4px;font-size:18px}
@@ -75,6 +75,42 @@ button.big{padding:14px 26px;font-size:17px}
 .fine{text-align:center;font-size:12px}
 @media (min-width:600px){.steps{grid-template-columns:repeat(3,1fr)}.step{padding:54px 14px 14px}}
 @media (max-width:420px){.herotitle{font-size:34px}}
+
+@media (max-width:480px){.brand span{display:none}}
+.navactions button{white-space:nowrap}
+/* ---- v14 layout: one idea per screen, chunky buttons, bottom action bar ---- */
+button.pri{box-shadow:0 4px 0 color-mix(in srgb,var(--ac) 62%,#000);border-radius:16px;font-weight:700;letter-spacing:.01em}
+button.pri:active{transform:translateY(3px);box-shadow:0 1px 0 color-mix(in srgb,var(--ac) 62%,#000)}
+button.block{display:block;width:100%;margin-top:18px}
+.linkbtn{background:none;border:0;color:var(--mut);text-decoration:underline;padding:8px 4px;margin-top:6px;display:block;margin-left:auto;margin-right:auto}
+.tprog{height:14px;border-radius:7px;margin:0 0 12px}
+#intro{min-height:70vh;display:flex;flex-direction:column;justify-content:center}
+.slide{text-align:left;padding:8px 2px 4px}
+.slide h1{font-size:34px;margin:14px 0 10px}.slide .hl{color:var(--ac)}
+.slide .lead{font-size:18px;line-height:1.5}
+.tile{width:64px;height:64px;border-radius:18px;background:var(--ac);color:var(--acfg);display:grid;place-items:center;font:700 32px Georgia,serif;box-shadow:0 4px 0 color-mix(in srgb,var(--ac) 62%,#000)}
+.dots{display:flex;gap:8px;margin:26px 0 18px}.dots i{width:9px;height:9px;border-radius:50%;background:var(--bd);transition:all .2s}.dots i.on{background:var(--ac);width:26px;border-radius:5px}
+.introbtns{display:flex;gap:10px}.introbtns .big{flex:1}
+.xpline{display:flex;justify-content:space-between;font-size:14px;margin-bottom:6px}.xpline b{font-weight:600}
+.xpbar{height:6px;margin-bottom:14px}
+.wordcard{text-align:center;padding:26px 18px 18px;position:relative}
+.wordcard .score{position:absolute;top:12px;right:14px;float:none}
+.wordcard .word{font-size:46px;margin:6px 0 8px;overflow-wrap:anywhere}
+.wordcard .def{font-size:18px}
+.speak{margin-top:14px;font-size:14px}
+.logcard{padding:12px}#log{max-height:200px}
+.m.a.ok{background:color-mix(in srgb,var(--ok) 15%,var(--card));border:1px solid var(--ok)}
+.m.a.bad{background:color-mix(in srgb,var(--bad) 13%,var(--card));border:1px solid var(--bad)}
+.m.a.warn{background:color-mix(in srgb,var(--ac) 13%,var(--card));border:1px solid var(--ac)}
+.m.ok::before,.m.bad::before,.m.warn::before{display:block;font-weight:700;margin-bottom:2px}
+.m.ok::before{content:"Correct";color:var(--ok)}.m.bad::before{content:"Not quite";color:var(--bad)}.m.warn::before{content:"Almost";color:var(--ac)}
+.m{scroll-margin-bottom:96px}#basicNote{padding:12px 14px;font-size:13px}#basicNote .sub{font-size:13px}
+.tips{margin:10px 0 0;font-size:13px;color:var(--mut)}.tips summary{cursor:pointer;text-align:center}
+.bottombar{position:sticky;bottom:0;display:flex;gap:10px;align-items:stretch;background:var(--bg);margin:14px -16px 0;padding:12px 16px calc(10px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--bd);z-index:5}
+#mic{flex:1;width:auto;height:56px;border-radius:16px;font-size:18px;padding:0 18px}
+#mic::after{content:" Tap to speak";font-size:16px}#mic.on::after{content:" Listening…"}
+#next{flex:none;height:56px;border-radius:16px;padding:0 20px;font-weight:600}
+.opt{border-width:2px;border-bottom-width:4px;border-radius:14px;padding:14px 16px}
 </style></head>
 <body><canvas id="cv"></canvas><main>
 
@@ -87,17 +123,19 @@ button.big{padding:14px 26px;font-size:17px}
 </div>
 
 <section id="homePage">
-  <div class="hero">
-    <p class="eyebrow">🎙️ Voice-first vocabulary coach</p>
-    <h1 class="herotitle">Learn new words by <span class="hl">saying them</span>.</h1>
-    <p class="lead">Voca teaches you a word, listens to your sentence, fixes your grammar and helps you pronounce it. A few minutes a day builds a vocabulary that sticks.</p>
-    <div class="ctas">
-      <button class="pri big" id="homePrimary" type="button">Find my level</button>
-      <button id="homeFresh" type="button" class="hide">Retake level check</button>
-    </div>
-    <p class="micro" id="homeMicro">Takes about a minute · No account needed</p>
+  <!-- First visit: one idea per card -->
+  <div id="intro" class="hide">
+    <div class="slide" data-i="0"><div class="tile">1</div><h1>Learn new words by <span class="hl">saying them</span>.</h1><p class="lead">Voca teaches you a word, listens to your sentence and helps you use it well.</p></div>
+    <div class="slide hide" data-i="1"><div class="tile">2</div><h1>Find your level</h1><p class="lead">A few quick questions place you at Novice, Beginner, Intermediate or Advanced. Not sure of an answer? Tap “I don’t know”. That is completely fine.</p></div>
+    <div class="slide hide" data-i="2"><div class="tile">3</div><h1>Practise out loud</h1><p class="lead">Hear a word, then say or type your own sentence. You get feedback, grammar fixes and slow pronunciation help.</p></div>
+    <div class="slide hide" data-i="3"><div class="tile">4</div><h1>Level up</h1><p class="lead">Earn XP for good sentences. When the bar is full, pass a short no-hints test to move up.</p></div>
+    <div class="slide hide" data-i="4"><div class="tile">5</div><h1>Your progress stays with you</h1><p class="lead">No account needed. Progress is saved on this device. When AI checking is available, the sentences you submit are sent to an AI model hosted by Cloudflare to be graded. Voca does not store them.</p></div>
+    <div class="dots" id="dots" aria-hidden="true"></div>
+    <div class="introbtns"><button id="introBack" type="button" class="hide">Back</button><button class="pri big" id="introNext" type="button">Next</button></div>
+    <button id="introSkip" type="button" class="linkbtn">Skip intro</button>
   </div>
 
+  <!-- Returning visit: one card, one button -->
   <div class="card hide" id="homeBack">
     <p class="eyebrow" style="margin:0 0 8px">Welcome back</p>
     <div class="xpl"><b id="hLevel"></b><span id="hXp"></span></div>
@@ -106,19 +144,10 @@ button.big{padding:14px 26px;font-size:17px}
       <div><b id="hWords">0</b><span>words practised</span></div>
       <div><b id="hAcc">–</b><span>accuracy</span></div>
     </div>
+    <button class="pri big block" id="homePrimary" type="button">Continue</button>
     <div class="unlockrow hide" id="hTest"><span><b>🔓 Level-up test unlocked</b><br><span class="sub" style="margin:0;font-size:13px">No hints. 4 out of 5 to move up.</span></span><button class="pri" id="homeTest" type="button">Take the test</button></div>
+    <button id="homeFresh" type="button" class="linkbtn">Retake level check</button>
   </div>
-
-  <h2 class="sec">How it works</h2>
-  <div class="steps">
-    <div class="step"><span class="n">1</span><b>Check your level</b><p>Six quick questions place you at Beginner, Intermediate or Advanced.</p></div>
-    <div class="step"><span class="n">2</span><b>Practise out loud</b><p>Hear a word, use it in your own sentence and get feedback and corrections.</p></div>
-    <div class="step"><span class="n">3</span><b>Level up</b><p>Earn XP for good sentences. Fill the bar, then pass a no-hints test to move up.</p></div>
-  </div>
-  <div class="chips">
-    <span class="chip">🎙️ Speak or type</span><span class="chip">✍️ Grammar fixes</span><span class="chip">🔊 Slow pronunciation</span><span class="chip">🎉 Level-up tests</span><span class="chip">💾 Saved on this device</span>
-  </div>
-  <p class="sub fine">Your progress is saved on this device. When AI checking is available, the sentences you submit are sent to an AI model hosted by Cloudflare to be graded. Voca does not store them.</p>
 </section>
 
 <section id="settings" class="hide">
@@ -163,12 +192,13 @@ button.big{padding:14px 26px;font-size:17px}
       <input id="themeToggle" class="switch" type="checkbox" role="switch" aria-label="Enable dark mode">
     </div>
   </div>
+  <div class="card"><h2>Privacy</h2><p class="sub" style="margin:0">Your progress is saved on this device. When AI checking is available, the sentences you submit are sent to an AI model hosted by Cloudflare to be graded. Voca does not store them.</p></div>
   <button id="settingsBack" class="pri" type="button">Back to Voca</button>
   <p id="settingsStatus" class="sub" role="status"></p>
 </section>
 
 <section id="quiz" class="hide">
-  <div class="bar"><i id="qbar" style="width:0"></i></div>
+  <div class="bar tprog"><i id="qbar" style="width:0"></i></div>
   <div class="card"><h2 id="qtext"></h2><p class="def hide" id="qsent" style="font-size:18px;margin:0 0 12px"></p><div id="qopts"></div></div>
 </section>
 
@@ -183,30 +213,29 @@ button.big{padding:14px 26px;font-size:17px}
 </section>
 
 <section id="train" class="hide">
+  <div class="bar tprog" title="Session progress"><i id="tbar" style="width:0"></i></div>
+  <div class="xpline"><b id="xplabel"></b><span id="xpnum"></span></div>
+  <div class="bar xpbar"><i id="xpbar" style="width:0"></i></div>
   <div class="card hide" id="basicNote" role="status" style="border-color:var(--bad)"><b>Basic check mode</b><p class="sub" style="margin:4px 0 0">AI sentence checking isn’t available right now (it may be busy or at its free daily limit), so Voca only checks that you used the word in a sentence of four or more words. It can’t judge whether the meaning is right, and it can’t check or correct your grammar.</p></div>
-  <div class="card" style="padding:14px 18px"><div class="xpl"><b id="xplabel"></b><span id="xpnum"></span></div><div class="bar" style="margin:0"><i id="xpbar" style="width:0"></i></div></div>
   <div class="card ucard hide" id="ucard"><b>🔓 Level-up test unlocked</b><p class="sub" style="margin:4px 0 10px">A mixed test with no hints. Get about 4 out of 5 right to move up.</p><button class="pri" id="utest">Take the level-up test</button></div>
-  <div class="bar" title="Session progress"><i id="tbar" style="width:0"></i></div>
-  <div class="card">
+  <div class="card ucard hide" id="easyCard"><b>Finding these words hard?</b><p class="sub" id="easyTxt" style="margin:4px 0 10px"></p><div class="row"><button class="pri" id="easyYes">Try easier words</button><button id="easyNo">Keep going</button></div></div>
+  <div class="card wordcard">
     <span class="score" id="score">Score 0/0</span>
     <p class="word" id="word"></p>
     <p class="def" id="def"></p>
+    <button id="rep" class="speak" type="button" aria-label="Hear the word again">🔊 Hear it again</button>
   </div>
-  <div class="card"><div id="log" aria-live="polite"></div></div>
-  <div class="row">
-    <button id="rep">↺ Repeat</button>
-    <button id="mic" aria-label="Speak">🎙️</button>
-    <button id="next">Next ›</button>
-  </div>
-  <div class="row" style="margin-top:4px;flex-wrap:wrap"><button id="pron">🗣️ Practise pronunciation</button><button id="slow" class="hide">🔊 Hear it again, slowly</button></div>
-  <div id="status"></div><p id="saveStatus" class="sub" style="text-align:center;margin:2px 0 0;font-size:12px">Progress saves automatically on this device.</p>
+  <div class="card logcard"><div id="log" aria-live="polite"></div></div>
   <form id="f" novalidate><input id="t" type="text" placeholder="Or type your sentence…" autocomplete="off"><button id="send" type="button">Send</button></form>
-  <p class="sub" style="text-align:center;margin-top:14px">Allow microphone access once in Settings, then tap the mic to speak. Voca listens only while the mic button is lit. Say “next” or “repeat” any time.</p>
+  <div class="row" style="margin-top:8px;flex-wrap:wrap"><button id="pron">🗣️ Practise pronunciation</button><button id="slow" class="hide">🔊 Hear it again, slowly</button></div>
+  <div id="status"></div><p id="saveStatus" class="sub" style="text-align:center;margin:2px 0 0;font-size:12px">Progress saves automatically on this device.</p>
+  <details class="tips"><summary>Tips</summary><p class="sub">Allow microphone access once in Settings, then tap the mic to speak. Voca listens only while the mic button is lit. Say “next” or “repeat” any time.</p></details>
+  <div class="bottombar"><button id="mic" class="pri" type="button" aria-label="Speak">🎙️</button><button id="next" type="button">Next ›</button></div>
 </section>
 
 <section id="test" class="hide">
   <p class="sub" style="margin:0 0 8px">Level-up test · mixed challenges · no hints · results at the end</p>
-  <div class="bar"><i id="tqbar" style="width:0"></i></div>
+  <div class="bar tprog"><i id="tqbar" style="width:0"></i></div>
   <div class="card">
     <p class="sub" id="tqtag" style="margin:0 0 6px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;font-size:12px"></p>
     <h2 id="tqtext"></h2>
@@ -241,15 +270,29 @@ function setPron(v){pronunciationMode=v;$("t").placeholder=v?"Speaking practice:
 function pauseVoice(){setPron(false);session++;stopMic();try{speechSynthesis.cancel();}catch(e){}}
 
 /* ---------- data ---------- */
-const QUIZ=[
- {w:"abundant",a:"plentiful",o:["plentiful","rare","noisy","dangerous"]},
- {w:"reluctant",a:"unwilling",o:["unwilling","eager","tired","generous"]},
- {w:"candid",a:"honest and direct",o:["honest and direct","secretive","angry","lazy"]},
- {w:"meticulous",a:"very careful about details",o:["very careful about details","careless","fast","friendly"]},
- {w:"ephemeral",a:"short-lived",o:["short-lived","eternal","heavy","colourful"]},
- {w:"obsequious",a:"overly eager to please",o:["overly eager to please","rude","fearless","forgetful"]}
-];
 const LEVELS={
+novice:[
+{w:"polite",d:"speaking and acting in a kind, respectful way",e:"It is polite to say thank you."},
+{w:"brave",d:"ready to do something scary or difficult",e:"The brave girl jumped into the river to help the dog."},
+{w:"borrow",d:"to take something and give it back later",e:"Can I borrow your pen?"},
+{w:"patient",d:"able to wait calmly without getting angry",e:"Please be patient. The bus will come soon."},
+{w:"honest",d:"always telling the truth",e:"She is an honest person."},
+{w:"strange",d:"unusual, not what you expect",e:"I heard a strange noise last night."},
+{w:"peaceful",d:"quiet and calm",e:"The village is very peaceful at night."},
+{w:"crowded",d:"full of people",e:"The market was crowded on Sunday."},
+{w:"popular",d:"liked by many people",e:"This song is very popular."},
+{w:"repair",d:"to fix something that is broken",e:"He can repair my bicycle."},
+{w:"invite",d:"to ask someone to come to an event",e:"We invite everyone to the wedding."},
+{w:"protect",d:"to keep someone or something safe",e:"A helmet will protect your head."},
+{w:"journey",d:"a long trip from one place to another",e:"The journey to Mysore took three hours."},
+{w:"nervous",d:"a little afraid or worried about something",e:"I felt nervous before my interview."},
+{w:"silent",d:"making no sound at all",e:"The room was silent."},
+{w:"lonely",d:"sad because you have no one with you",e:"She felt lonely in the new city."},
+{w:"cheerful",d:"happy and full of energy",e:"The cheerful teacher smiled at everyone."},
+{w:"festival",d:"a special time when people celebrate",e:"We eat sweets during the festival."},
+{w:"habit",d:"something you do often without thinking",e:"Reading every night is a good habit."},
+{w:"rude",d:"not kind or respectful to other people",e:"It is rude to shout at your friends."},
+],
 beginner:[
 {w:"abundant",d:"existing in large amounts",e:"The orchard had abundant fruit this year."},
 {w:"reluctant",d:"unwilling and hesitant",e:"He was reluctant to speak in public."},
@@ -314,9 +357,9 @@ advanced:[
 {w:"inscrutable",d:"impossible to understand or interpret",e:"His inscrutable expression gave nothing away."},
 {w:"mercurial",d:"unpredictable in mood or behaviour",e:"The mercurial founder changed strategy every week."}]
 };
-const LV=["beginner","intermediate","advanced"];const cap=s=>s[0].toUpperCase()+s.slice(1);
+const LV=["novice","beginner","intermediate","advanced"];const cap=s=>s[0].toUpperCase()+s.slice(1);
 let micStream=null,micEnabled=false,micOptOut=false,micTest=false,sampleSettled=false,tbarMax=0,voiceSettings={voiceURI:"",volume:1,rate:.95,theme:""};
-let xp=0,mastered=false,rAct=()=>{},level="beginner",words=[],i=-1,score=0,tried=0,qi=0,qs=0,session=0,busy=false,listening=false,got=false,rec=null,dict=null,sample=null,pronunciationMode=false,wordStats={},reviewCounts={},credit={};
+let xp=0,mastered=false,rAct=()=>{},level="beginner",words=[],i=-1,score=0,tried=0,qi=0,qs=0,session=0,busy=false,listening=false,got=false,rec=null,dict=null,sample=null,pronunciationMode=false,wordStats={},reviewCounts={},credit={},wrongStreak=0,easyDismissed=false;
 
 /* ---------- capabilities ---------- */
 function refreshBasicNote(){$("basicNote").classList.toggle("hide",!!sample||!sampleSettled);}
@@ -423,17 +466,30 @@ function updateMicSettingUI(){
   if(t)t.checked=!!micEnabled;
   if(s)s.textContent=micEnabled?"Allowed. Listens only while the mic button is lit":"Off until enabled";
 }
+let introIdx=0;
+const INTRO_N=5;
+function introSeen(){try{return localStorage.getItem("vocaIntroSeen")==="1";}catch(e){return false;}}
+function markIntroSeen(){try{localStorage.setItem("vocaIntroSeen","1");}catch(e){}}
+function showSlide(n){
+  introIdx=Math.max(0,Math.min(INTRO_N-1,n));
+  document.querySelectorAll("#intro .slide").forEach(el=>el.classList.toggle("hide",Number(el.dataset.i)!==introIdx));
+  $("dots").innerHTML=Array.from({length:INTRO_N},(_,k)=>`<i class="${k===introIdx?"on":""}"></i>`).join("");
+  $("introBack").classList.toggle("hide",introIdx===0);
+  $("introNext").textContent=introIdx===INTRO_N-1?"Find my level":"Next";
+  $("introSkip").classList.toggle("hide",introIdx===INTRO_N-1);
+}
+$("introNext").onclick=()=>{if(introIdx<INTRO_N-1)showSlide(introIdx+1);else{markIntroSeen();beginFresh();}};
+$("introBack").onclick=()=>showSlide(introIdx-1);
+$("introSkip").onclick=()=>{markIntroSeen();beginFresh();};
 function enterApp(){
   const saved=load();
   show("homePage",true);
+  $("intro").classList.toggle("hide",!!saved);
   $("homeBack").classList.toggle("hide",!saved);
-  $("homeFresh").classList.toggle("hide",!saved);
   if(saved){
     const xpv=Number(saved.xp)||0,st=saved.wordStats||{};
     let n=0,att=0,cor=0;Object.values(st).forEach(x=>{if(x&&x.attempts){n++;att+=x.attempts;cor+=x.correct||0;}});
     const nxt=LV[LV.indexOf(saved.level)+1];
-    $("homePrimary").textContent="Continue training";
-    $("homeMicro").textContent="Retaking the level check resets your XP and word history once you finish it.";
     $("hLevel").textContent=cap(saved.level)+(saved.mastered?" · Mastered 🏆":"");
     $("hXp").textContent=saved.mastered?"All levels mastered":Math.min(xpv,100)+" / 100 XP → "+(nxt?cap(nxt):"Mastery");
     $("hBar").style.width=(saved.mastered?100:Math.min(xpv,100))+"%";
@@ -441,8 +497,7 @@ function enterApp(){
     $("hAcc").textContent=att?Math.round(cor/att*100)+"%":"–";
     $("hTest").classList.toggle("hide",!(xpv>=100&&!saved.mastered));
   }else{
-    $("homePrimary").textContent="Find my level";
-    $("homeMicro").textContent="Takes about a minute · No account needed";
+    showSlide(introSeen()?INTRO_N-1:0);   // someone who has seen the intro goes straight to its last card
   }
 }
 function setLevel(l,reset){level=l;if(reset){xp=0;mastered=false;wordStats={};}save();}
@@ -546,7 +601,7 @@ function endTest(){
 }
 
 /* ---------- home, settings + quiz ---------- */
-function beginFresh(){qi=0;qs=0;show("quiz");renderQ();}
+function beginFresh(){pl={li:0,asked:[],right:0,wrong:0,passed:-1,n:0};show("quiz");renderQ();}
 $("homePrimary").onclick=()=>{
   const saved=load();
   if(saved){restoreProgress();startTraining(level);}
@@ -599,38 +654,55 @@ $("volumeSlider").addEventListener("input",()=>{if(testPlaying){clearTimeout(pre
 $("volumeSlider").addEventListener("change",()=>{clearTimeout(previewTimer);previewVoice();});
 $("rateSlider").addEventListener("change",()=>{clearTimeout(previewTimer);previewVoice();});
 
-function quizItem(k){
-  const q=QUIZ[k];
-  if(k%2===1){   // every second question is fill-in-the-blank, using the word's example sentence
-    const lw=Object.values(LEVELS).flat().find(x=>x.w===q.w),sent=lw&&blankOf(lw);
-    if(sent)return {sentence:sent,prompt:"Choose the word that best completes the sentence.",ans:q.w,opts:[q.w,...shufA(QUIZ.filter(x=>x.w!==q.w)).slice(0,3).map(x=>x.w)]};
-  }
-  return {prompt:"What does “"+q.w+"” mean?",ans:q.a,opts:q.o};
+/* ---------- adaptive placement ---------- */
+// Starts at Beginner. Two right answers pass a level (then try the next); two wrong answers stop it.
+// Anyone who does not pass Beginner starts at Novice. "I don't know" counts as wrong, so nobody has to guess.
+const PLACE_LV=["beginner","intermediate","advanced"];
+let pl={li:0,asked:[],right:0,wrong:0,passed:-1,n:0};
+function placeItem(lv){
+  const pool=LEVELS[lv],w=shufA(pool.filter(x=>!pl.asked.includes(x.w)))[0];
+  const others=shufA(pool.filter(x=>x.w!==w.w)).slice(0,3);
+  return {w:w.w,prompt:"What does “"+w.w+"” mean?",ans:w.d,opts:[w.d,...others.map(x=>x.d)]};
 }
 function renderQ(){
-  const q=quizItem(qi); $("qbar").style.width=(qi/QUIZ.length*100)+"%";
-  $("qtext").textContent=q.prompt; $("qsent").textContent=q.sentence||""; $("qsent").classList.toggle("hide",!q.sentence);
+  const q=placeItem(PLACE_LV[pl.li]);pl.asked.push(q.w);pl.n++;
+  $("qbar").style.width=Math.min(90,pl.n/7*100)+"%";
+  $("qtext").textContent=q.prompt;$("qsent").textContent="";$("qsent").classList.add("hide");
   $("qopts").innerHTML="";
+  const answer=(btn,ok)=>{
+    [...$("qopts").children].forEach(x=>{x.disabled=true;if(x.dataset.ans==="1")x.classList.add("good");});
+    if(btn&&!ok)btn.classList.add("bad");
+    if(ok)pl.right++;else pl.wrong++;
+    setTimeout(nextQ,800);
+  };
   shufA(q.opts).forEach(o=>{
-    const b=document.createElement("button");b.className="opt";b.textContent=o;
-    b.onclick=()=>{ const ok=o===q.ans; if(ok)qs++; b.classList.add(ok?"good":"bad");
-      [...$("qopts").children].forEach(x=>{x.disabled=true;if(x.textContent===q.ans)x.classList.add("good");});
-      setTimeout(()=>{ if(++qi<QUIZ.length)renderQ(); else finishQuiz(); },800); };
-    $("qopts").appendChild(b);
+    const b=document.createElement("button");b.className="opt";b.textContent=o;if(o===q.ans)b.dataset.ans="1";
+    b.onclick=()=>answer(b,o===q.ans);$("qopts").appendChild(b);
   });
+  const idk=document.createElement("button");idk.className="opt";idk.textContent="I don’t know";idk.style.opacity=".75";idk.style.fontStyle="italic";
+  idk.onclick=()=>answer(null,false);$("qopts").appendChild(idk);
+}
+function nextQ(){
+  if(pl.right<2&&pl.wrong<2)return renderQ();   // this level is still undecided
+  if(pl.right>=2){
+    pl.passed=pl.li;
+    if(pl.li<PLACE_LV.length-1){pl.li++;pl.right=0;pl.wrong=0;return renderQ();}
+  }
+  finishQuiz();
 }
 function finishQuiz(){
-  level=qs<=2?"beginner":qs<=4?"intermediate":"advanced";
-  $("rlevel").textContent=level[0].toUpperCase()+level.slice(1);
-  $("rtext").textContent=`You got ${qs} of ${QUIZ.length} right. Voca will teach you ${level}-level words, one at a time.`;
-  $("rhead").textContent="Your result";$("rstart").textContent="Start training";$("rreview").innerHTML="";
+  level=pl.passed<0?"novice":PLACE_LV[pl.passed];
+  $("rlevel").textContent=cap(level);
+  $("rtext").textContent=`Voca will start you with ${level}-level words, one at a time. You can move up at any time by earning XP and passing the level-up test.`;
+  $("rhead").textContent="Your starting level";$("rstart").textContent="Start training";$("rreview").innerHTML="";
   rAct=()=>{setLevel(level,true);startTraining(level);};
   show("result");
 }
 $("rstart").onclick=()=>rAct();
 
 /* ---------- voice helpers ---------- */
-function log(who,t){const d=document.createElement("div");d.className="m "+(who==="a"?"a":"u");d.textContent=t;$("log").appendChild(d);$("log").scrollTop=1e9;}
+let fbKind="";
+function log(who,t){const d=document.createElement("div");d.className="m "+(who==="a"?"a"+(fbKind?" "+fbKind:""):"u");if(who==="a")fbKind="";d.textContent=t;d.style.scrollMarginBottom="96px";$("log").appendChild(d);$("log").scrollTop=1e9;try{if(current==="train")d.scrollIntoView({block:"nearest",behavior:"smooth"});}catch(e){}}
 function micOut(t){const el=$("micCheckOut");if(el)el.textContent=t;}
 // Possible reasons, shown only when the mic test fails (never as part of a normal result).
 function micTipsFill(code){
@@ -753,8 +825,18 @@ function chooseWords(l){
   pool.sort((a,b)=>{const A=getWordStat(a.w),B=getWordStat(b.w);const ar=A.attempts?A.correct/A.attempts:-1,br=B.attempts?B.correct/B.attempts:-1;return ar-br || A.attempts-B.attempts || Math.random()-.5;});
   return pool.slice(0,6);
 }
+function offerEasier(){
+  const idx=LV.indexOf(level);
+  if(idx<1||easyDismissed)return;
+  const lower=LV[idx-1];
+  $("easyTxt").textContent=`You have missed 3 in a row. ${cap(lower)} has easier words. Your XP for this level will restart, but your word history is kept.`;
+  $("easyYes").textContent="Try "+lower+" words";
+  $("easyCard").classList.remove("hide");
+}
+$("easyYes").onclick=()=>{const lower=LV[Math.max(0,LV.indexOf(level)-1)];level=lower;xp=0;mastered=false;save();startTraining(lower);};
+$("easyNo").onclick=()=>{easyDismissed=true;$("easyCard").classList.add("hide");};
 function startTraining(l){
-  level=l; words=chooseWords(l);reviewCounts={};credit={};save();
+  level=l; words=chooseWords(l);reviewCounts={};credit={};wrongStreak=0;easyDismissed=false;$("easyCard").classList.add("hide");save();
   i=-1;score=0;tried=0;refreshBasicNote();tbarMax=0;$("score").textContent="Score 0/0";$("log").innerHTML="";show("train");unlock();updateXp();next();
 }
 async function next(){
@@ -802,8 +884,8 @@ function editDistance(a,b){
   return row[b.length];
 }
 // Add new words here so the right inflections are accepted. Anything not listed is treated as an adjective (base form only).
-const VERBS=new Set(["hesitate","improve","scrutinize","mitigate","substantiate","bolster","equivocate","ameliorate"]);
-const NOUNS=new Set(["dilemma","sycophant"]);
+const VERBS=new Set(["borrow","repair","invite","protect","hesitate","improve","scrutinize","mitigate","substantiate","bolster","equivocate","ameliorate"]);
+const NOUNS=new Set(["journey","festival","habit","dilemma","sycophant"]);
 const ALLWORDS=new Set(Object.values(LEVELS).flat().map(x=>x.w));
 function targetWordForms(target){
   const w=target.toLowerCase(),f=new Set([w]);
@@ -886,11 +968,12 @@ async function handle(text,fromVoice){
     return;
   }
   busy=true; session++; const my=session; let r;
+  const lvNote=level==="novice"?"IMPORTANT for this learner: they are a beginner in English. Use very simple words in your feedback and corrections. This overrides rule (6): set grammarOk to false only for a clear error that changes the meaning or that a beginner should fix now; ignore small article or preposition slips; mention at most ONE fix. ":"";
   const hint=(!exact&&typo)?`Note: the sentence contains “${typo}”, which looks similar to the target word. Decide whether it is a misspelling of the target (then set spellingCorrection and mark incorrect) or a different, correctly spelled word (then the target word was not used, so mark incorrect and do not mention spelling). `:"";
   try{
     if(!sample)throw new Error("AI evaluator unavailable");
     status("Voca is checking your sentence…");
-    const out=await withTimeout(sample(`You are Voca, a careful vocabulary and writing coach. Target word: "${w.w}" meaning "${w.d}". Learner sentence: "${text}". Evaluate strictly. Requirements: (1) Accept the target word itself OR a grammatically correct inflected form of the same word (for example, scrutinize, scrutinizes, scrutinized, scrutinizing). Do not require the base form when the sentence naturally requires another tense or grammatical form. Do not accept merely related words with a different part of speech or meaning. (2) The response must be a genuine sentence with at least four words; repeating only the target word is NOT a sentence and is NOT correct. (3) Judge whether the target word is used with the right meaning and naturally in context. (4) If the target word is misspelled, identify the learner's spelling and provide the correct spelling; do not mark correct. (5) If the sentence is too short or only repeats the word, ask for a full sentence. (6) Also check grammar, verb tense, subject-verb agreement, articles, prepositions and word order across the whole sentence. If there is ANY grammatical error, set grammarOk to false, put the corrected full sentence in "corrected" (keep the learner's meaning and keep the target word), and name the fix briefly in "grammarNote" (for example: use went instead of goes for past tense). Never tell the learner to move on when there is a grammar error. Set grammarOk to true only when the whole sentence is grammatically correct. Be supportive but never praise an incorrect answer as correct. If correct is false, you MUST always say what was wrong in "grammarNote" and give a full corrected sentence that uses the target word in "corrected"; never reply with encouragement alone.  Vary encouraging feedback. ${hint}Reply ONLY valid JSON with keys: {"correct":boolean,"feedback":"one or two short spoken sentences","better":"a corrected example sentence, or empty string","spellingCorrection":"wrong spelling → correct spelling, or empty string","tooShort":boolean,"grammarOk":boolean,"corrected":"corrected full sentence, or empty string","grammarNote":"short explanation of the fix, or empty string"}.`,{cache:false}),20000);
+    const out=await withTimeout(sample(`You are Voca, a careful vocabulary and writing coach. Target word: "${w.w}" meaning "${w.d}". Learner sentence: "${text}". Evaluate strictly. Requirements: (1) Accept the target word itself OR a grammatically correct inflected form of the same word (for example, scrutinize, scrutinizes, scrutinized, scrutinizing). Do not require the base form when the sentence naturally requires another tense or grammatical form. Do not accept merely related words with a different part of speech or meaning. (2) The response must be a genuine sentence with at least four words; repeating only the target word is NOT a sentence and is NOT correct. (3) Judge whether the target word is used with the right meaning and naturally in context. (4) If the target word is misspelled, identify the learner's spelling and provide the correct spelling; do not mark correct. (5) If the sentence is too short or only repeats the word, ask for a full sentence. (6) Also check grammar, verb tense, subject-verb agreement, articles, prepositions and word order across the whole sentence. If there is ANY grammatical error, set grammarOk to false, put the corrected full sentence in "corrected" (keep the learner's meaning and keep the target word), and name the fix briefly in "grammarNote" (for example: use went instead of goes for past tense). Never tell the learner to move on when there is a grammar error. Set grammarOk to true only when the whole sentence is grammatically correct. ${lvNote}Be supportive but never praise an incorrect answer as correct. If correct is false, you MUST always say what was wrong in "grammarNote" and give a full corrected sentence that uses the target word in "corrected"; never reply with encouragement alone.  Vary encouraging feedback. ${hint}Reply ONLY valid JSON with keys: {"correct":boolean,"feedback":"one or two short spoken sentences","better":"a corrected example sentence, or empty string","spellingCorrection":"wrong spelling → correct spelling, or empty string","tooShort":boolean,"grammarOk":boolean,"corrected":"corrected full sentence, or empty string","grammarNote":"short explanation of the fix, or empty string"}.`,{cache:false}),20000);
     r=JSON.parse(out.text.replace(/```json|```/g,"").trim());
     // Apply deterministic safeguards even if the model is overly generous.
     if(fromVoice)r.spellingCorrection="";   // a spoken word can't be "misspelled"
@@ -902,7 +985,7 @@ async function handle(text,fromVoice){
     if(fromVoice)r.spellingCorrection="";
   }
   if(r.tooShort || r.spellingCorrection){
-    busy=false;
+    busy=false;fbKind="warn";
     await say(r.feedback || (r.spellingCorrection?`The correct spelling is ${target}. Try the full sentence again.`:`Please use ${target} in a complete sentence.`));
     status(r.spellingCorrection?`Spelling correction: ${r.spellingCorrection}. Not scored.`:"A complete sentence is needed. Not scored.");
     return;
@@ -920,7 +1003,7 @@ async function handle(text,fromVoice){
     return;
   }
   const was=xp;
-  if(!repeatCredit){tried++;saveWordResult(w.w,!!r.correct);}
+  if(!repeatCredit){tried++;saveWordResult(w.w,!!r.correct);wrongStreak=r.correct?0:wrongStreak+1;if(wrongStreak>=3)offerEasier();}
   if(r.correct){for(let k=words.length-1;k>i;k--)if(words[k].w===w.w)words.splice(k,1);}
   const gain=r.correct?Math.max(0,full-prior):0;
   if(r.correct)credit[w.w]=Math.max(prior,full);
@@ -940,6 +1023,7 @@ async function handle(text,fromVoice){
     const lead=model?(r.corrected?"A corrected version is: ":"Here's a model sentence: "):"";
     spoken=r.feedback+" "+note+(model?lead+model+" ":"")+(r.correct?"Say next for another word.":"Want to try again?")+(unl?" You've unlocked the level-up test!":"");
   }
+  fbKind=grammarIssue?"warn":r.correct?"ok":"bad";
   await say(spoken);
   if(my===session)autoListen();
 }
