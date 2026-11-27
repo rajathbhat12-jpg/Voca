@@ -78,6 +78,8 @@ button.big{padding:14px 26px;font-size:17px}
 
 @media (max-width:480px){.brand span{display:none}}
 .navactions button{white-space:nowrap}
+#welcome{min-height:70vh;display:flex;flex-direction:column;justify-content:center;text-align:center}
+#welcome h1{font-size:38px;line-height:1.2;margin:0 0 28px}
 /* ---- v14 layout: one idea per screen, chunky buttons, bottom action bar ---- */
 button.pri{box-shadow:0 4px 0 color-mix(in srgb,var(--ac) 62%,#000);border-radius:16px;font-weight:700;letter-spacing:.01em}
 button.pri:active{transform:translateY(3px);box-shadow:0 1px 0 color-mix(in srgb,var(--ac) 62%,#000)}
@@ -123,6 +125,12 @@ button.block{display:block;width:100%;margin-top:18px}
 </div>
 
 <section id="homePage">
+  <!-- First visit, step 0: a plain welcome -->
+  <div id="welcome" class="hide">
+    <h1>Hey, I am Voca,<br>your personal vocabulary coach.</h1>
+    <button class="pri big block" id="welcomeGo" type="button">Get started</button>
+  </div>
+
   <!-- First visit: one idea per card -->
   <div id="intro" class="hide">
     <div class="slide" data-i="0"><div class="tile">1</div><h1>Learn new words by <span class="hl">saying them</span>.</h1><p class="lead">Voca teaches you a word, listens to your sentence and helps you use it well.</p></div>
@@ -466,7 +474,7 @@ function updateMicSettingUI(){
   if(t)t.checked=!!micEnabled;
   if(s)s.textContent=micEnabled?"Allowed. Listens only while the mic button is lit":"Off until enabled";
 }
-let introIdx=0;
+let introIdx=0,welcomeDone=false;
 const INTRO_N=5;
 function introSeen(){try{return localStorage.getItem("vocaIntroSeen")==="1";}catch(e){return false;}}
 function markIntroSeen(){try{localStorage.setItem("vocaIntroSeen","1");}catch(e){}}
@@ -478,13 +486,15 @@ function showSlide(n){
   $("introNext").textContent=introIdx===INTRO_N-1?"Find my level":"Next";
   $("introSkip").classList.toggle("hide",introIdx===INTRO_N-1);
 }
+$("welcomeGo").onclick=()=>{welcomeDone=true;enterApp();};
 $("introNext").onclick=()=>{if(introIdx<INTRO_N-1)showSlide(introIdx+1);else{markIntroSeen();beginFresh();}};
 $("introBack").onclick=()=>showSlide(introIdx-1);
 $("introSkip").onclick=()=>{markIntroSeen();beginFresh();};
 function enterApp(){
   const saved=load();
   show("homePage",true);
-  $("intro").classList.toggle("hide",!!saved);
+  $("welcome").classList.toggle("hide",!!saved||welcomeDone);
+  $("intro").classList.toggle("hide",!!saved||!welcomeDone);
   $("homeBack").classList.toggle("hide",!saved);
   if(saved){
     const xpv=Number(saved.xp)||0,st=saved.wordStats||{};
@@ -497,7 +507,7 @@ function enterApp(){
     $("hAcc").textContent=att?Math.round(cor/att*100)+"%":"–";
     $("hTest").classList.toggle("hide",!(xpv>=100&&!saved.mastered));
   }else{
-    showSlide(introSeen()?INTRO_N-1:0);   // someone who has seen the intro goes straight to its last card
+    if(welcomeDone)showSlide(0);
   }
 }
 function setLevel(l,reset){level=l;if(reset){xp=0;mastered=false;wordStats={};}save();}
